@@ -1,0 +1,5 @@
+# Impede ler a configuração (com a senha) e a pasta de dados pelo navegador
+Options -Indexes
+<Files "config.php">
+  Require all denied
+</Files>
