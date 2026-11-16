@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir mesmo sem internet (só a tela; as vendas sempre vêm do servidor).
-const CACHE = 'rifa-v1';
+const CACHE = 'rifa-v2';
 const ARQUIVOS = ['./', 'index.html', 'vendedor.html', 'style.css', 'app.js', 'manifest.json', 'manifest-vendedor.json',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/vendedor-192.png', 'icons/vendedor-512.png', 'icons/apple-touch-icon.png', 'icons/apple-touch-icon-vendedor.png'];
 

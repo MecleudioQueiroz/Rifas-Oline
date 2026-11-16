@@ -7,7 +7,7 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   let sold = {}, isAdmin = false, loaded = false, loadErr = false;
-  let deferredPrompt = null, installHelp = false;
+  let deferredPrompt = null, installHelp = false, shareUrl = null, shareBlob = null, genBusy = false;
   const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const installBtn = () => standalone() ? '' : '<button class="alt" id="btnInstall">📲 Instalar no celular</button>';
@@ -27,7 +27,7 @@
       loadErr = false; isAdmin = j.vendedor; TOTAL = j.total; PRICE = j.valor; sold = j.vendidos; loaded = true;
       let dropped = [...sel].filter(n => sold[n] !== undefined);
       dropped.forEach(n => sel.delete(n)); if (dropped.length) { persistSel(); toast('Número(s) ' + dropped.join(', ') + ' foram vendidos e saíram da sua escolha.'); }
-      if (modalN === null && !(document.activeElement && document.activeElement.id === 'search')) render();
+      if (modalN === null && !shareUrl && !(document.activeElement && document.activeElement.id === 'search')) render();
     } catch (e) { if (!loaded) { loadErr = true; render(); } else if (!quiet) toast('Sem conexão. Mostrando os últimos dados.'); }
   }
   const ed = () => SELLER_PAGE && isAdmin;
@@ -77,7 +77,7 @@
         <div class="bar"><i style="width:${n/TOTAL*100}%"></i></div>
         <div class="tools">
           ${window.XLSX ? `<label class="filebtn">📂 Abrir Excel<input type="file" id="fileIn" accept=".xlsx,.xls,.csv"></label><button id="btnXlsx">💾 Baixar Excel</button>` : ''}
-          <button class="alt" id="btnLogout">Sair</button>${installBtn()}</div>
+          <button id="btnImg">📸 Imagem para o Status</button><button class="alt" id="btnLogout">Sair</button>${installBtn()}</div>
         <input class="search" id="search" type="search" placeholder="🔎 Buscar número ou participante..." value="${esc(query)}">
         <div class="filters">${[['all','Todos'],['sold','Vendidos'],['free','Disponíveis']].map(([k,l]) => `<button data-f="${k}" class="${filter===k?'on':''}">${l}</button>`).join('')}</div>
         <p style="text-align:center">Toque em um número para marcar como vendido e informar o participante.</p></section>`;
@@ -108,6 +108,11 @@
         <button class="alt" id="btnClearSel">Limpar</button><a class="wa" href="https://wa.me/${WA}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Enviar pelo WhatsApp</a></div></div>`;
     }
     if (installHelp) h += helpModal();
+    if (shareUrl && e) h += `<div class="modal"><div class="modal-box" role="dialog" aria-modal="true" style="max-height:94vh;overflow:auto"><h2>Imagem do Status</h2>
+      <p>Pronta para o status do WhatsApp (formato 9:16).</p>
+      <img src="${shareUrl}" alt="Prévia da imagem da rifa" style="width:min(60vw,240px);border:2px solid var(--pill-border);border-radius:10px">
+      <div class="dlg-btns">${navigator.canShare ? '<button id="btnShareImg">📤 Compartilhar</button>' : ''}<a class="wa" href="${shareUrl}" download="rifa-status.png">⬇ Baixar imagem</a><button class="alt" id="btnCloseImg">Fechar</button></div>
+      <p style="margin-top:10px">No celular: toque em Compartilhar e escolha o WhatsApp (Status). Se não aparecer, segure o dedo na imagem para salvar.</p></div></div>`;
     if (modalN !== null) {
       const has = sold[modalN] !== undefined;
       h += `<div class="modal"><div class="modal-box" role="dialog" aria-modal="true"><h2>Número ${modalN}</h2><p>${has ? 'Vendido. Edite o nome ou desmarque.' : 'Informe o nome do participante'}</p>
@@ -122,6 +127,76 @@
 
   let tt;
   function toast(m) { const o = $('.toast'); o && o.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); clearTimeout(tt); tt = setTimeout(() => t.remove(), 2600); }
+
+
+  /* ---------- imagem para o status do WhatsApp (1080x1920) ---------- */
+  async function drawStatus() {
+    try {
+      await Promise.all(['900 40px "Playfair Display"', 'italic 500 30px "Playfair Display"', '900 30px Nunito', '800 30px Nunito'].map(f => document.fonts.load(f)));
+    } catch (e) {}
+    const W = 900, H = 1600, K = 1.2, SERIF = '"Playfair Display", Georgia, serif', SANS = 'Nunito, system-ui, sans-serif';
+    const cv = document.createElement('canvas'); cv.width = W * K; cv.height = H * K;
+    const c = cv.getContext('2d'); c.scale(K, K); c.textAlign = 'center'; c.textBaseline = 'middle';
+    const WINE = '#8b1538', ROSE = '#d81b60', PILL = '#fbd3dd', EDGE = '#f4a9bd', INK = '#2b1b20';
+
+    const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+    // desenha texto que encolhe até caber na largura
+    const fit = (txt, x, y, maxW, size, weight, fam, color, style) => {
+      let sz = size; do { c.font = `${style || ''} ${weight} ${sz}px ${fam}`; sz -= 1; } while (c.measureText(txt).width > maxW && sz > 10);
+      c.fillStyle = color; c.fillText(txt, x, y);
+    };
+    const pill = (x, y, w, h, fill, txt, size, weight, fam, color, style, stroke) => {
+      rr(x, y, w, h, h / 2); c.fillStyle = fill; c.fill(); if (stroke) { c.setLineDash([8, 6]); c.strokeStyle = EDGE; c.lineWidth = 3; c.stroke(); c.setLineDash([]); }
+      fit(txt, x + w / 2, y + h / 2 + 2, w - 36, size, weight, fam, color, style);
+    };
+
+    // fundo
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#fde4ea'); g.addColorStop(.4, '#fff3f6'); g.addColorStop(1, '#fde4ea');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.font = '84px sans-serif';
+    [[48, 56, -.25, 1], [W - 48, 56, .25, -1], [40, H - 4, .25, 1], [W - 40, H - 4, -.25, -1]].forEach(([x, y, a, f]) => { c.save(); c.translate(x, y); c.rotate(a); c.scale(f, 1); c.fillText('🌸', 0, 0); c.restore(); });
+
+    // cabeçalho
+    pill(250, 10, 400, 84, PILL, '🌸❤️ RIFA', 68, 900, SERIF, WINE, '', true);
+    pill(70, 104, 760, 48, 'rgba(251,211,221,.85)', '🎗️ Participe e contribua com essa causa tão especial!', 29, 500, SERIF, INK, 'italic');
+    fit('Contamos com sua solidariedade!', W / 2, 176, 760, 28, 500, SERIF, INK, 'italic');
+    pill(180, 198, 540, 54, PILL, '🎁 PRÊMIOS: 3 KITS DA NATURA', 32, 900, SANS, INK);
+    pill(60, 264, 420, 48, PILL, '💰 Valor do número: R$ 10,00', 24, 800, SANS, INK);
+    pill(492, 264, 348, 48, PILL, '🎟️ Quantidade: 250 números', 24, 800, SANS, INK);
+    pill(165, 324, 570, 50, ROSE, '📌 CHAVE PIX PARA PARTICIPAR:', 32, 900, SANS, '#fff');
+    pill(250, 380, 400, 56, PILL, '📱 14286769291', 44, 900, SANS, INK);
+    fit('👤 Titular: ILZA MARIA DE SOUZA', W / 2, 462, 760, 30, 900, SANS, INK);
+    pill(115, 486, 670, 44, PILL, '✅ Envie o comprovante para confirmar sua participação.', 24, 800, SANS, INK);
+    pill(195, 540, 510, 50, ROSE, '🟢 69 9292-9501 - WHATSAPP', 30, 900, SANS, '#fff');
+    pill(40, 600, 820, 44, PILL, '📢 ATENÇÃO: O sorteio será realizado após a venda de todos os 250', 24, 800, SANS, INK);
+    fit('Que Deus abençoe cada pessoa que contribuir com essa causa!', W / 2, 670, 800, 28, 500, SERIF, INK, 'italic');
+
+    // quantidade vendida / livres
+    const n = Object.keys(sold).length, livres = TOTAL - n;
+    pill(60, 696, 360, 56, '#fff', `✅ Vendidos: ${n}`, 34, 900, SANS, '#b0124b', '', true);
+    pill(480, 696, 360, 56, '#fff', `🎟️ Livres: ${livres}`, 34, 900, SANS, '#1b8a4b', '', true);
+    pill(110, 764, 680, 54, ROSE, '📋 Números livres ficam em branco', 30, 900, SANS, '#fff');
+
+    // grade
+    const gx = 20, gy = 832, cw = 86, rh = 28, rows = TOTAL / 10;
+    rr(gx - 2, gy - 2, cw * 10 + 4, rh * rows + 4, 6); c.fillStyle = '#fff'; c.fill();
+    for (let i = 1; i <= TOTAL; i++) {
+      const col = (i - 1) % 10, row = Math.floor((i - 1) / 10), x = gx + col * cw, y = gy + row * rh, isSold = sold[i] !== undefined;
+      if (isSold) { c.fillStyle = '#ffd1de'; c.fillRect(x, y, cw, rh); }
+      c.font = `900 21px ${SANS}`; const tw = c.measureText(String(i)).width;
+      c.fillStyle = isSold ? '#b0124b' : INK; c.fillText(String(i), x + cw / 2, y + rh / 2 + 1);
+      if (isSold) { c.fillRect(x + cw / 2 - tw / 2 - 2, y + rh / 2 + 1, tw + 4, 2.5); }
+    }
+    c.strokeStyle = '#222'; c.lineWidth = 1;
+    for (let r2 = 1; r2 < rows; r2++) { c.beginPath(); c.moveTo(gx, gy + r2 * rh); c.lineTo(gx + cw * 10, gy + r2 * rh); c.stroke(); }
+    for (let c2 = 1; c2 < 10; c2++) { c.beginPath(); c.moveTo(gx + c2 * cw, gy); c.lineTo(gx + c2 * cw, gy + rh * rows); c.stroke(); }
+    c.lineWidth = 3; rr(gx, gy, cw * 10, rh * rows, 5); c.stroke();
+
+    const d = new Date(), pad = v => String(v).padStart(2, '0');
+    fit(`Atualizado em ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} às ${pad(d.getHours())}:${pad(d.getMinutes())}`, W / 2, gy + rh * rows + 22, 760, 20, 800, SANS, '#6b4350');
+
+    return new Promise((ok, fail) => cv.toBlob(b => b ? ok(b) : fail(new Error('canvas')), 'image/png'));
+  }
 
   async function save(call) {
     try { await call(); modalN = null; await refresh(); }
@@ -149,6 +224,19 @@
       case 'mCancel': modalN = null; render(); break;
       case 'btnRetry': loadErr = false; render(); refresh(); break;
       case 'hOk': installHelp = false; render(); break;
+      case 'btnImg':
+        if (genBusy) break; genBusy = true; t.textContent = '⏳ Gerando…';
+        try { shareBlob = await drawStatus(); if (shareUrl) URL.revokeObjectURL(shareUrl); shareUrl = URL.createObjectURL(shareBlob); }
+        catch (err) { toast('Não foi possível gerar a imagem.'); }
+        genBusy = false; render(); break;
+      case 'btnCloseImg': URL.revokeObjectURL(shareUrl); shareUrl = null; shareBlob = null; render(); break;
+      case 'btnShareImg':
+        try {
+          const f = new File([shareBlob], 'rifa-status.png', {type: 'image/png'});
+          if (navigator.canShare({files: [f]})) await navigator.share({files: [f], title: 'Rifa Solidária'});
+          else toast('Seu aparelho não permite compartilhar daqui. Use Baixar imagem.');
+        } catch (err) { if (err && err.name !== 'AbortError') toast('Não foi possível compartilhar. Use Baixar imagem.'); }
+        break;
       case 'btnInstall':
         if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch (e) {} deferredPrompt = null; render(); }
         else { installHelp = true; render(); }
@@ -182,6 +270,7 @@
     if (e.target.id === 'senha' && e.key === 'Enter') $('#btnLogin').click();
     if (e.key === 'Escape' && modalN !== null) { modalN = null; render(); }
     if (e.key === 'Escape' && installHelp) { installHelp = false; render(); }
+    if (e.key === 'Escape' && shareUrl) { URL.revokeObjectURL(shareUrl); shareUrl = null; shareBlob = null; render(); }
   });
 
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; if (loaded && modalN === null) render(); });

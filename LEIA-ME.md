@@ -26,3 +26,6 @@ Dois endereços, mesma rifa:
 - O vendedor instala pelo endereço `/vendedor.html` e ganha um ícone separado ("Rifa Vendedor"). O login dele dura 30 dias.
 - Exige **HTTPS** no endereço (certificado do cPanel/AutoSSL). Sem HTTPS o navegador não oferece a instalação.
 - Ao atualizar os arquivos no servidor, o app instalado pega a versão nova na próxima abertura com internet.
+
+## Imagem para o status do WhatsApp
+No painel do vendedor, toque em **📸 Imagem para o Status**. A página gera uma imagem 9:16 no mesmo visual da rifa, com a quantidade de vendidos e livres e a grade de 1 a 250 (vendidos riscados em rosa, livres em branco). Use **Compartilhar** (celular) ou **Baixar imagem**. Os nomes dos participantes não aparecem na imagem.
