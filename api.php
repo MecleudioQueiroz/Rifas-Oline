@@ -1,7 +1,12 @@
 <?php
 // API da rifa: guarda os números vendidos em data/rifa.json
 $cfg = require __DIR__ . '/config.php';
-session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]);
+// Sessão do vendedor: guardada em data/sessions e válida por 30 dias (para o app instalado não pedir senha toda hora)
+$sessDir = __DIR__ . '/data/sessions';
+if (!is_dir($sessDir)) @mkdir($sessDir, 0700, true);
+if (is_dir($sessDir) && is_writable($sessDir)) session_save_path($sessDir);
+ini_set('session.gc_maxlifetime', '2592000');
+session_set_cookie_params(['lifetime' => 2592000, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => !empty($_SERVER['HTTPS'])]);
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

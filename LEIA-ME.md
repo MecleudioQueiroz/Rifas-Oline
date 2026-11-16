@@ -19,3 +19,10 @@ Dois endereços, mesma rifa:
 - Os nomes dos participantes **não** são enviados ao comprador, só quais números estão vendidos.
 - Para backup, baixe `data/rifa.json` ou use **Baixar Excel** no painel do vendedor.
 - Precisa de PHP 7.4+ (a HostGator já oferece).
+
+## Instalar como aplicativo (celular)
+- **Android (Chrome):** na página, toque em **📲 Instalar no celular** e confirme.
+- **iPhone (Safari):** toque em **Compartilhar** → **Adicionar à Tela de Início**.
+- O vendedor instala pelo endereço `/vendedor.html` e ganha um ícone separado ("Rifa Vendedor"). O login dele dura 30 dias.
+- Exige **HTTPS** no endereço (certificado do cPanel/AutoSSL). Sem HTTPS o navegador não oferece a instalação.
+- Ao atualizar os arquivos no servidor, o app instalado pega a versão nova na próxima abertura com internet.

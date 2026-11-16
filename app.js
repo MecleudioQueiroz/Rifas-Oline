@@ -6,7 +6,11 @@
   const brl = v => v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  let sold = {}, isAdmin = false, loaded = false;
+  let sold = {}, isAdmin = false, loaded = false, loadErr = false;
+  let deferredPrompt = null, installHelp = false;
+  const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const installBtn = () => standalone() ? '' : '<button class="alt" id="btnInstall">📲 Instalar no celular</button>';
   let sel = new Set(), filter = 'all', query = '', modalN = null, loginErr = '';
   try { JSON.parse(localStorage.getItem('rifa_sel') || '[]').forEach(n => sel.add(+n)); } catch (e) {}
   const persistSel = () => { try { localStorage.setItem('rifa_sel', JSON.stringify([...sel])); } catch (e) {} };
@@ -20,11 +24,11 @@
   async function refresh(quiet) {
     try {
       const j = await api('list');
-      isAdmin = j.vendedor; TOTAL = j.total; PRICE = j.valor; sold = j.vendidos; loaded = true;
+      loadErr = false; isAdmin = j.vendedor; TOTAL = j.total; PRICE = j.valor; sold = j.vendidos; loaded = true;
       let dropped = [...sel].filter(n => sold[n] !== undefined);
       dropped.forEach(n => sel.delete(n)); if (dropped.length) { persistSel(); toast('Número(s) ' + dropped.join(', ') + ' foram vendidos e saíram da sua escolha.'); }
       if (modalN === null && !(document.activeElement && document.activeElement.id === 'search')) render();
-    } catch (e) { if (!quiet) toast('Não foi possível carregar os dados.'); }
+    } catch (e) { if (!loaded) { loadErr = true; render(); } else if (!quiet) toast('Sem conexão. Mostrando os últimos dados.'); }
   }
   const ed = () => SELLER_PAGE && isAdmin;
 
@@ -43,12 +47,27 @@
     <p class="plain" style="font-size:19px">Que Deus abençoe cada pessoa que contribuir com essa causa!</p>`;
   }
 
+  function helpModal() {
+    const passos = isIOS()
+      ? ['Abra esta página no <b>Safari</b>.', 'Toque em <b>Compartilhar</b> (o quadrado com uma seta para cima, na barra do Safari).', 'Role a lista e toque em <b>Adicionar à Tela de Início</b>.', 'Toque em <b>Adicionar</b>. O ícone aparece na sua tela.']
+      : ['Toque nos <b>três pontinhos ⋮</b> do navegador (Chrome).', 'Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.', 'Confirme. O ícone aparece na sua tela.'];
+    return `<div class="modal"><div class="modal-box" role="dialog" aria-modal="true"><h2>Instalar no celular</h2>
+      <ol style="text-align:left;font-weight:700;font-size:14px;padding-left:20px;margin:8px 0">${passos.map(x => `<li style="margin:6px 0">${x}</li>`).join('')}</ol>
+      <div class="dlg-btns"><button id="hOk">Entendi</button></div></div></div>`;
+  }
+
   function render() {
     let h = header();
+    if (!loaded) {
+      h += `<section class="panel login"><h2>${loadErr ? 'Sem conexão' : 'Carregando os números…'}</h2>
+        <p>${loadErr ? 'Não foi possível buscar os números. Confira sua internet e tente de novo.' : 'Aguarde um instante.'}</p>
+        ${loadErr ? '<div class="tools"><button id="btnRetry">Tentar de novo</button></div>' : ''}</section>`;
+      root.innerHTML = h; return;
+    }
     if (SELLER_PAGE && loaded && !isAdmin) {
       h += `<section class="panel login"><h2>Área do vendedor</h2><p>Digite a senha para marcar as vendas.</p>
         <input class="field" id="senha" type="password" placeholder="Senha" autocomplete="current-password">
-        <div class="err" id="loginErr">${esc(loginErr)}</div><div class="tools"><button id="btnLogin">Entrar</button></div></section>`;
+        <div class="err" id="loginErr">${esc(loginErr)}</div><div class="tools"><button id="btnLogin">Entrar</button>${installBtn()}</div></section>`;
       root.innerHTML = h; return;
     }
     const n = Object.keys(sold).length, free = TOTAL - n, e = ed();
@@ -58,7 +77,7 @@
         <div class="bar"><i style="width:${n/TOTAL*100}%"></i></div>
         <div class="tools">
           ${window.XLSX ? `<label class="filebtn">📂 Abrir Excel<input type="file" id="fileIn" accept=".xlsx,.xls,.csv"></label><button id="btnXlsx">💾 Baixar Excel</button>` : ''}
-          <button class="alt" id="btnLogout">Sair</button></div>
+          <button class="alt" id="btnLogout">Sair</button>${installBtn()}</div>
         <input class="search" id="search" type="search" placeholder="🔎 Buscar número ou participante..." value="${esc(query)}">
         <div class="filters">${[['all','Todos'],['sold','Vendidos'],['free','Disponíveis']].map(([k,l]) => `<button data-f="${k}" class="${filter===k?'on':''}">${l}</button>`).join('')}</div>
         <p style="text-align:center">Toque em um número para marcar como vendido e informar o participante.</p></section>`;
@@ -67,7 +86,7 @@
         <p>Toque nos números livres que você quer. Os rosa com ✔ já foram vendidos. Depois, envie sua escolha pelo WhatsApp e faça o PIX.</p>
         <div class="stats"><span class="stat">Disponíveis: <b>${free}</b></span><span class="stat">Vendidos: <b>${n}</b></span></div>
         <div class="bar"><i style="width:${n/TOTAL*100}%"></i></div>
-        <div class="tools"><button class="alt" id="btnCopyPix">📋 Copiar chave PIX</button></div></section>`;
+        <div class="tools"><button class="alt" id="btnCopyPix">📋 Copiar chave PIX</button>${installBtn()}</div></section>`;
     }
     h += `<span class="list-title">📋 Lista de Números e Participantes</span><div class="grid ${e?'':'buyer'}">`;
     for (let i = 1; i <= TOTAL; i++) {
@@ -88,6 +107,7 @@
       h += `<div class="cart"><div class="cart-in"><div class="cart-txt"><b>${nums.length} ${nums.length>1?'números':'número'} · ${total}</b><span class="cart-nums">${nums.join(', ')}</span></div>
         <button class="alt" id="btnClearSel">Limpar</button><a class="wa" href="https://wa.me/${WA}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Enviar pelo WhatsApp</a></div></div>`;
     }
+    if (installHelp) h += helpModal();
     if (modalN !== null) {
       const has = sold[modalN] !== undefined;
       h += `<div class="modal"><div class="modal-box" role="dialog" aria-modal="true"><h2>Número ${modalN}</h2><p>${has ? 'Vendido. Edite o nome ou desmarque.' : 'Informe o nome do participante'}</p>
@@ -127,6 +147,12 @@
       case 'mOk': { const v = $('#mName').value; save(() => api('set', {n: modalN, nome: v})); break; }
       case 'mUn': save(() => api('unset', {n: modalN})); break;
       case 'mCancel': modalN = null; render(); break;
+      case 'btnRetry': loadErr = false; render(); refresh(); break;
+      case 'hOk': installHelp = false; render(); break;
+      case 'btnInstall':
+        if (deferredPrompt) { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch (e) {} deferredPrompt = null; render(); }
+        else { installHelp = true; render(); }
+        break;
       case 'btnClearSel': sel.clear(); persistSel(); render(); break;
       case 'btnXlsx': {
         const rows = [['Número','Status','Participante','Valor (R$)']];
@@ -155,7 +181,12 @@
     if (e.target.id === 'mName' && e.key === 'Enter') $('#mOk').click();
     if (e.target.id === 'senha' && e.key === 'Enter') $('#btnLogin').click();
     if (e.key === 'Escape' && modalN !== null) { modalN = null; render(); }
+    if (e.key === 'Escape' && installHelp) { installHelp = false; render(); }
   });
+
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; if (loaded && modalN === null) render(); });
+  window.addEventListener('appinstalled', () => { deferredPrompt = null; installHelp = false; toast('App instalado!'); render(); });
+  if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
   render(); refresh();
   setInterval(() => { if (!document.hidden) refresh(true); }, 20000);
